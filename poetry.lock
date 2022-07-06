@@ -1,0 +1,17 @@
+[[package]]
+name = "dbus-python"
+version = "1.2.18"
+description = "Python bindings for libdbus"
+category = "main"
+optional = false
+python-versions = "*"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "e319645747ebfb06d369fea75b753cea4b0be5fc581755d5ea203b89b967c7ed"
+
+[metadata.files]
+dbus-python = [
+    {file = "dbus-python-1.2.18.tar.gz", hash = "sha256:92bdd1e68b45596c833307a5ff4b217ee6929a1502f5341bae28fd120acf7260"},
+]
