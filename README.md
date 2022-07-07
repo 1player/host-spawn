@@ -1,6 +1,5 @@
 ## TODO
 
-* Full lifecycle by subscribing to HostCommandExited signal
 * Maybe rewrite in Go
 * Make /bin/sh work
 
