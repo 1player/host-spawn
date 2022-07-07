@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -19,6 +18,20 @@ func argvFromArguments() [][]byte {
 	}
 
 	return argv
+}
+
+// Extract exit code from waitpid(2) status
+func interpretWaitStatus(status uint32) (int, bool) {
+	// From /usr/include/bits/waitstatus.h
+	WTERMSIG := status & 0x7f
+	WIFEXITED := WTERMSIG == 0
+
+	if WIFEXITED {
+		WEXITSTATUS := (status & 0xff00) >> 8
+		return int(WEXITSTATUS), true
+	} else {
+		return 0, false
+	}
 }
 
 func main() {
@@ -57,12 +70,12 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	for {
-		select {
-		case message := <-signals:
-			exitStatus := message.Body[1].(uint32)
-			fmt.Println(exitStatus)
-			os.Exit(0)
+	for message := range signals {
+		waitStatus := message.Body[1].(uint32)
+		if exitCode, exited := interpretWaitStatus(waitStatus); exited {
+			os.Exit(exitCode)
+		} else {
+			os.Exit(255)
 		}
 	}
 }
