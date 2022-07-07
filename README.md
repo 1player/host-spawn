@@ -1,6 +1,6 @@
 ## TODO
 
-* Make /bin/sh work
+* Figure out why most times O_NOCTTY is not required
 
 ## Hacking notes
 
