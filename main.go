@@ -11,15 +11,6 @@ func nullTerminatedByteString(s string) []byte {
 	return append([]byte(s), 0)
 }
 
-func argvFromArguments() [][]byte {
-	argv := make([][]byte, len(os.Args)-1)
-	for i, arg := range os.Args[1:] {
-		argv[i] = nullTerminatedByteString(arg)
-	}
-
-	return argv
-}
-
 // Extract exit code from waitpid(2) status
 func interpretWaitStatus(status uint32) (int, bool) {
 	// From /usr/include/bits/waitstatus.h
@@ -34,15 +25,14 @@ func interpretWaitStatus(status uint32) (int, bool) {
 	}
 }
 
-func main() {
+func runCommandSync(args []string) (int, bool) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer conn.Close()
 
-	proxy := conn.Object("org.freedesktop.Flatpak", "/org/freedesktop/Flatpak/Development")
-
+	// Subscribe to HostCommandExited messages
 	if err = conn.AddMatchSignal(
 		dbus.WithMatchInterface("org.freedesktop.Flatpak.Development"),
 		dbus.WithMatchMember("HostCommandExited"),
@@ -52,13 +42,19 @@ func main() {
 	signals := make(chan *dbus.Signal, 1)
 	conn.Signal(signals)
 
+	// Spawn host command
+	proxy := conn.Object("org.freedesktop.Flatpak", "/org/freedesktop/Flatpak/Development")
+
 	var pid uint32
 	cwd, err := os.Getwd()
 	if err != nil {
 		log.Fatalln(err)
 	}
 	cwd_path := nullTerminatedByteString(cwd)
-	argv := argvFromArguments()
+	argv := make([][]byte, len(args))
+	for i, arg := range args {
+		argv[i] = nullTerminatedByteString(arg)
+	}
 	envs := map[string]string{"TERM": "xterm-256color"}
 	fds := map[uint32]dbus.UnixFD{0: 0, 1: 1, 2: 2}
 	flags := uint32(0)
@@ -70,12 +66,19 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	// Wait for HostCommandExited to fire
 	for message := range signals {
 		waitStatus := message.Body[1].(uint32)
-		if exitCode, exited := interpretWaitStatus(waitStatus); exited {
-			os.Exit(exitCode)
-		} else {
-			os.Exit(255)
-		}
+		return interpretWaitStatus(waitStatus)
+	}
+
+	panic("unreachable")
+}
+
+func main() {
+	if exitCode, exited := runCommandSync(os.Args[1:]); exited {
+		os.Exit(exitCode)
+	} else {
+		os.Exit(255)
 	}
 }
