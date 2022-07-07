@@ -1,6 +1,5 @@
 ## TODO
 
-* Maybe rewrite in Go
 * Make /bin/sh work
 
 ## Hacking notes
