@@ -50,13 +50,28 @@ func runCommandSync(args []string) (int, bool) {
 	if err != nil {
 		log.Fatalln(err)
 	}
+
 	cwd_path := nullTerminatedByteString(cwd)
+
 	argv := make([][]byte, len(args))
 	for i, arg := range args {
 		argv[i] = nullTerminatedByteString(arg)
 	}
 	envs := map[string]string{"TERM": "xterm-256color"}
-	fds := map[uint32]dbus.UnixFD{0: 0, 1: 1, 2: 2}
+
+	pty, err := createPty()
+	if err != nil {
+		log.Fatalln(err)
+	}
+	pty.Start()
+	defer pty.Terminate()
+
+	fds := map[uint32]dbus.UnixFD{
+		0: dbus.UnixFD(pty.Stdin.Fd()),
+		1: dbus.UnixFD(pty.Stdout.Fd()),
+		2: dbus.UnixFD(pty.Stderr.Fd()),
+	}
+
 	flags := uint32(0)
 
 	err = proxy.Call("org.freedesktop.Flatpak.Development.HostCommand", 0,
