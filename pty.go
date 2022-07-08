@@ -3,88 +3,78 @@ package main
 // Most of the logic from https://github.com/creack/pty/blob/master/pty_linux.go
 
 import (
-	"C"
 	"os"
-	"strconv"
-	"syscall"
-	"unsafe"
-)
-import (
+
 	"fmt"
 	"io"
 	"sync"
 
-	"golang.org/x/term"
+	"github.com/pkg/term/termios"
+	"golang.org/x/sys/unix"
 )
 
 type pty struct {
-	wg                sync.WaitGroup
-	ptmx              *os.File
-	oldStdinTermState *term.State
-	Stdin             *os.File
-	Stdout            *os.File
-	Stderr            *os.File
+	wg sync.WaitGroup
+
+	previousStdinTermios unix.Termios
+
+	master *os.File
+	slave  *os.File
 }
 
 // TODO: close fds on error
 func createPty() (*pty, error) {
-	ptmx, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+	master, slave, err := termios.Pty()
 	if err != nil {
 		return nil, err
 	}
 
-	sname, err := ptsname(ptmx)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := unlockpt(ptmx); err != nil {
-		return nil, err
-	}
-
-	var p pty
-	p.ptmx = ptmx
-
-	if p.Stdin, err = os.OpenFile(sname, os.O_RDONLY, 0); err != nil {
-		return nil, err
-	}
-	if p.Stdout, err = os.OpenFile(sname, os.O_WRONLY, 0); err != nil {
-		return nil, err
-	}
-	if p.Stderr, err = os.OpenFile(sname, os.O_WRONLY, 0); err != nil {
-		return nil, err
-	}
-
-	return &p, nil
+	return &pty{
+		master: master,
+		slave:  slave,
+	}, nil
 }
 
-func (p *pty) Start() {
-	var err error
-	p.oldStdinTermState, err = term.MakeRaw(int(os.Stdin.Fd()))
+func (p *pty) Stdin() *os.File {
+	return p.slave
+}
+
+func (p *pty) Stdout() *os.File {
+	return p.slave
+}
+
+func (p *pty) Stderr() *os.File {
+	return p.slave
+}
+
+func (p *pty) Start() error {
+	err := p.makeStdinRaw()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	p.wg.Add(2)
 
 	go func() {
-		n, err := io.Copy(p.ptmx, os.Stdin)
+		n, err := io.Copy(p.master, os.Stdin)
 		fmt.Println(n, err)
 		p.wg.Done()
 	}()
 
 	go func() {
-		n, err := io.Copy(os.Stdout, p.ptmx)
+		n, err := io.Copy(os.Stdout, p.master)
 		fmt.Println(n, err)
 		p.wg.Done()
 	}()
+
+	return nil
 }
 
 func (p *pty) Terminate() {
-	// Restore stdio state
-	_ = term.Restore(int(os.Stdin.Fd()), p.oldStdinTermState)
+	p.restoreStdin()
 
-	p.ptmx.Close()
+	//p.slave.Close()
+	p.master.Close()
 
 	// TODO: somehow I can't figure out how to have the
 	// spawned process send an EOF when its fds are closed,
@@ -93,25 +83,21 @@ func (p *pty) Terminate() {
 	//p.wg.Wait()
 }
 
-func ptsname(f *os.File) (string, error) {
-	var n C.int
-	err := ioctl(f.Fd(), syscall.TIOCGPTN, uintptr(unsafe.Pointer(&n)))
-	if err != nil {
-		return "", err
+func (p *pty) makeStdinRaw() error {
+	var stdinTermios unix.Termios
+	if err := termios.Tcgetattr(os.Stdin.Fd(), &stdinTermios); err != nil {
+		return err
 	}
-	return "/dev/pts/" + strconv.Itoa(int(n)), nil
-}
 
-func unlockpt(f *os.File) error {
-	var u C.int
-	// use TIOCSPTLCK with a pointer to zero to clear the lock
-	return ioctl(f.Fd(), syscall.TIOCSPTLCK, uintptr(unsafe.Pointer(&u)))
-}
-
-func ioctl(fd, cmd, ptr uintptr) error {
-	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, fd, cmd, ptr)
-	if e != 0 {
-		return e
+	p.previousStdinTermios = stdinTermios
+	termios.Cfmakeraw(&stdinTermios)
+	if err := termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &stdinTermios); err != nil {
+		return err
 	}
+
 	return nil
+}
+
+func (p *pty) restoreStdin() {
+	_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
 }

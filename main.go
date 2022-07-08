@@ -67,9 +67,9 @@ func runCommandSync(args []string) (int, bool) {
 	defer pty.Terminate()
 
 	fds := map[uint32]dbus.UnixFD{
-		0: dbus.UnixFD(pty.Stdin.Fd()),
-		1: dbus.UnixFD(pty.Stdout.Fd()),
-		2: dbus.UnixFD(pty.Stderr.Fd()),
+		0: dbus.UnixFD(pty.Stdin().Fd()),
+		1: dbus.UnixFD(pty.Stdout().Fd()),
+		2: dbus.UnixFD(pty.Stderr().Fd()),
 	}
 
 	flags := uint32(0)
