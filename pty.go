@@ -5,14 +5,25 @@ package main
 import (
 	"io"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
+	"unsafe"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
 )
 
+type Winsize struct {
+	Rows uint16 // ws_row: Number of rows (in cells)
+	Cols uint16 // ws_col: Number of columns (in cells)
+	X    uint16 // ws_xpixel: Width in pixels
+	Y    uint16 // ws_ypixel: Height in pixels
+}
+
 type pty struct {
-	wg sync.WaitGroup
+	wg      sync.WaitGroup
+	signals chan os.Signal
 
 	previousStdinTermios unix.Termios
 
@@ -27,8 +38,9 @@ func createPty() (*pty, error) {
 	}
 
 	return &pty{
-		master: master,
-		slave:  slave,
+		master:  master,
+		slave:   slave,
+		signals: make(chan os.Signal, 1),
 	}, nil
 }
 
@@ -50,6 +62,8 @@ func (p *pty) Start() error {
 		return err
 	}
 
+	p.handleSignals()
+
 	p.wg.Add(2)
 
 	go func() {
@@ -62,6 +76,8 @@ func (p *pty) Start() error {
 		p.wg.Done()
 	}()
 
+	p.inheritWindowSize()
+
 	return nil
 }
 
@@ -70,11 +86,36 @@ func (p *pty) Terminate() {
 
 	p.master.Close()
 	p.slave.Close()
+	close(p.signals)
 
 	// TODO: somehow I can't figure out how to have the
 	// spawned process send an EOF when its fds are closed,
 	// so for this reason the io.Copy calls above never return.
 	//p.wg.Wait()
+}
+
+func (p *pty) handleSignals() {
+	signal.Notify(p.signals, syscall.SIGWINCH)
+
+	go func() {
+		for signal := range p.signals {
+			switch signal {
+			case syscall.SIGWINCH:
+				_ = p.inheritWindowSize()
+			}
+		}
+	}()
+}
+
+func (p *pty) inheritWindowSize() error {
+	var winsz Winsize
+	if err := getWinsz(os.Stdout, &winsz); err != nil {
+		return err
+	}
+	if err := setWinsz(p.master, &winsz); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *pty) makeStdinRaw() error {
@@ -94,4 +135,26 @@ func (p *pty) makeStdinRaw() error {
 
 func (p *pty) restoreStdin() {
 	_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
+}
+
+func getWinsz(file *os.File, winsz *Winsize) error {
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL, uintptr(file.Fd()), uintptr(syscall.TIOCGWINSZ),
+		uintptr(unsafe.Pointer(winsz)),
+	)
+	if errno != 0 {
+		return errno
+	}
+	return nil
+}
+
+func setWinsz(file *os.File, winsz *Winsize) error {
+	_, _, errno := syscall.Syscall(
+		syscall.SYS_IOCTL, uintptr(file.Fd()), uintptr(syscall.TIOCSWINSZ),
+		uintptr(unsafe.Pointer(winsz)),
+	)
+	if errno != 0 {
+		return errno
+	}
+	return nil
 }
