@@ -57,7 +57,7 @@ func runCommandSync(args []string) (int, bool) {
 	for i, arg := range args {
 		argv[i] = nullTerminatedByteString(arg)
 	}
-	envs := map[string]string{"TERM": "xterm-256color"}
+	envs := map[string]string{"TERM": os.Getenv("TERM")}
 
 	pty, err := createPty()
 	if err != nil {
