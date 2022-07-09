@@ -3,10 +3,8 @@ package main
 // Most of the logic from https://github.com/creack/pty/blob/master/pty_linux.go
 
 import (
-	"os"
-
-	"fmt"
 	"io"
+	"os"
 	"sync"
 
 	"github.com/pkg/term/termios"
@@ -22,7 +20,6 @@ type pty struct {
 	slave  *os.File
 }
 
-// TODO: close fds on error
 func createPty() (*pty, error) {
 	master, slave, err := termios.Pty()
 	if err != nil {
@@ -56,14 +53,12 @@ func (p *pty) Start() error {
 	p.wg.Add(2)
 
 	go func() {
-		n, err := io.Copy(p.master, os.Stdin)
-		fmt.Println(n, err)
+		io.Copy(p.master, os.Stdin)
 		p.wg.Done()
 	}()
 
 	go func() {
-		n, err := io.Copy(os.Stdout, p.master)
-		fmt.Println(n, err)
+		io.Copy(os.Stdout, p.master)
 		p.wg.Done()
 	}()
 
@@ -73,13 +68,12 @@ func (p *pty) Start() error {
 func (p *pty) Terminate() {
 	p.restoreStdin()
 
-	//p.slave.Close()
 	p.master.Close()
+	p.slave.Close()
 
 	// TODO: somehow I can't figure out how to have the
 	// spawned process send an EOF when its fds are closed,
 	// so for this reason the io.Copy calls above never return.
-	// Let's just quit, but we might lose data.
 	//p.wg.Wait()
 }
 
