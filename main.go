@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -91,6 +92,11 @@ func runCommandSync(args []string) (int, bool) {
 }
 
 func main() {
+	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
+		fmt.Fprintf(os.Stderr, "usage: %s command [arguments ...]", os.Args[0])
+		return
+	}
+
 	if exitCode, exited := runCommandSync(os.Args[1:]); exited {
 		os.Exit(exitCode)
 	} else {
