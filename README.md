@@ -2,10 +2,10 @@
 
 A reimplementation of `flatpak-spawn --host`.
 
-Mostly a proof-of-concept to explore the idea of allocating a new pty for the spawned process, to fix the following upstream issues:
+Improvements over the original:
 
-* https://github.com/flatpak/flatpak/issues/3697
-* https://github.com/flatpak/flatpak/issues/3285
+* Allocates a pty for the spawned process, fixing the following upstream issues: https://github.com/flatpak/flatpak/issues/3697 and https://github.com/flatpak/flatpak/issues/3285
+* Handles SIGWINCH (window size changes)
 
 ## References
 
