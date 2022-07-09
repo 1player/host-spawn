@@ -1,7 +1,5 @@
 package main
 
-// Most of the logic from https://github.com/creack/pty/blob/master/pty_linux.go
-
 import (
 	"io"
 	"os"
