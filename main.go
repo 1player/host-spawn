@@ -1,3 +1,4 @@
+// Flatpak spawn simple reimplementation
 package main
 
 import (
@@ -12,6 +13,9 @@ func nullTerminatedByteString(s string) []byte {
 	return append([]byte(s), 0)
 }
 
+// Version is the current value injected at build time.
+var Version string
+
 // Extract exit code from waitpid(2) status
 func interpretWaitStatus(status uint32) (int, bool) {
 	// From /usr/include/bits/waitstatus.h
@@ -21,12 +25,14 @@ func interpretWaitStatus(status uint32) (int, bool) {
 	if WIFEXITED {
 		WEXITSTATUS := (status & 0xff00) >> 8
 		return int(WEXITSTATUS), true
-	} else {
-		return 0, false
 	}
+
+	return 0, false
 }
 
-func runCommandSync(args []string) (int, bool) {
+func runCommandSync(args []string) (error, int, bool) {
+
+	// Connect to the dbus session to talk with flatpak-session-helper process.
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		log.Fatalln(err)
@@ -52,7 +58,7 @@ func runCommandSync(args []string) (int, bool) {
 		log.Fatalln(err)
 	}
 
-	cwd_path := nullTerminatedByteString(cwd)
+	cwdPath := nullTerminatedByteString(cwd)
 
 	argv := make([][]byte, len(args))
 	for i, arg := range args {
@@ -75,20 +81,25 @@ func runCommandSync(args []string) (int, bool) {
 
 	flags := uint32(0)
 
+	// Call command on the host
 	err = proxy.Call("org.freedesktop.Flatpak.Development.HostCommand", 0,
-		cwd_path, argv, fds, envs, flags,
+		cwdPath, argv, fds, envs, flags,
 	).Store(&pid)
+
+	// an error occurred this early, most likely command not found.
 	if err != nil {
-		log.Fatalln(err)
+		fmt.Println(err)
+		return err, 127, true
 	}
 
 	// Wait for HostCommandExited to fire
 	for message := range signals {
 		waitStatus := message.Body[1].(uint32)
-		return interpretWaitStatus(waitStatus)
+		status, exited := interpretWaitStatus(waitStatus)
+		return nil, status, exited
 	}
 
-	panic("unreachable")
+	return nil, 0, true
 }
 
 func main() {
@@ -97,9 +108,14 @@ func main() {
 		return
 	}
 
-	if exitCode, exited := runCommandSync(os.Args[1:]); exited {
+	// Version flag
+	if os.Args[1] == "-v" || os.Args[1] == "--version" {
+		fmt.Println(Version)
+		return
+	}
+
+	_, exitCode, exited := runCommandSync(os.Args[1:])
+	if exited {
 		os.Exit(exitCode)
-	} else {
-		os.Exit(255)
 	}
 }
