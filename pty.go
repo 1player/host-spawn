@@ -1,3 +1,4 @@
+// Create a pty for us
 package main
 
 import (
@@ -12,7 +13,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type Winsize struct {
+type winsize struct {
 	Rows uint16 // ws_row: Number of rows (in cells)
 	Cols uint16 // ws_col: Number of columns (in cells)
 	X    uint16 // ws_xpixel: Width in pixels
@@ -106,7 +107,7 @@ func (p *pty) handleSignals() {
 }
 
 func (p *pty) inheritWindowSize() error {
-	var winsz Winsize
+	var winsz winsize
 	if err := getWinsz(os.Stdout, &winsz); err != nil {
 		return err
 	}
@@ -135,7 +136,7 @@ func (p *pty) restoreStdin() {
 	_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
 }
 
-func getWinsz(file *os.File, winsz *Winsize) error {
+func getWinsz(file *os.File, winsz *winsize) error {
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_IOCTL, uintptr(file.Fd()), uintptr(syscall.TIOCGWINSZ),
 		uintptr(unsafe.Pointer(winsz)),
@@ -146,7 +147,7 @@ func getWinsz(file *os.File, winsz *Winsize) error {
 	return nil
 }
 
-func setWinsz(file *os.File, winsz *Winsize) error {
+func setWinsz(file *os.File, winsz *winsize) error {
 	_, _, errno := syscall.Syscall(
 		syscall.SYS_IOCTL, uintptr(file.Fd()), uintptr(syscall.TIOCSWINSZ),
 		uintptr(unsafe.Pointer(winsz)),
