@@ -2,8 +2,8 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/godbus/dbus/v5"
@@ -30,12 +30,12 @@ func interpretWaitStatus(status uint32) (int, bool) {
 	return 0, false
 }
 
-func runCommandSync(args []string, allocatePty bool) (error, int, bool) {
+func runCommandSync(args []string, allocatePty bool) (int, error) {
 
 	// Connect to the dbus session to talk with flatpak-session-helper process.
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
-		log.Fatalln(err)
+		return 0, err
 	}
 	defer conn.Close()
 
@@ -44,7 +44,7 @@ func runCommandSync(args []string, allocatePty bool) (error, int, bool) {
 		dbus.WithMatchInterface("org.freedesktop.Flatpak.Development"),
 		dbus.WithMatchMember("HostCommandExited"),
 	); err != nil {
-		log.Fatalln(err)
+		return 0, err
 	}
 	signals := make(chan *dbus.Signal, 1)
 	conn.Signal(signals)
@@ -55,7 +55,7 @@ func runCommandSync(args []string, allocatePty bool) (error, int, bool) {
 	var pid uint32
 	cwd, err := os.Getwd()
 	if err != nil {
-		log.Fatalln(err)
+		return 0, err
 	}
 
 	cwdPath := nullTerminatedByteString(cwd)
@@ -73,7 +73,7 @@ func runCommandSync(args []string, allocatePty bool) (error, int, bool) {
 	if allocatePty {
 		pty, err := createPty()
 		if err != nil {
-			log.Fatalln(err)
+			return 0, err
 		}
 		pty.Start()
 		defer pty.Terminate()
@@ -92,18 +92,21 @@ func runCommandSync(args []string, allocatePty bool) (error, int, bool) {
 
 	// an error occurred this early, most likely command not found.
 	if err != nil {
-		fmt.Println(err)
-		return err, 127, true
+		return 0, err
 	}
 
 	// Wait for HostCommandExited to fire
 	for message := range signals {
 		waitStatus := message.Body[1].(uint32)
 		status, exited := interpretWaitStatus(waitStatus)
-		return nil, status, exited
+		if exited {
+			return status, nil
+		} else {
+			return status, errors.New("child process did not terminate cleanly")
+		}
 	}
 
-	return nil, 0, true
+	panic("unreachable")
 }
 
 func main() {
@@ -126,8 +129,11 @@ func main() {
 		allocatePty = false
 	}
 
-	_, exitCode, exited := runCommandSync(command, allocatePty)
-	if exited {
-		os.Exit(exitCode)
+	exitCode, err := runCommandSync(command, allocatePty)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		exitCode = 127
 	}
+
+	os.Exit(exitCode)
 }
