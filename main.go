@@ -30,7 +30,7 @@ func interpretWaitStatus(status uint32) (int, bool) {
 	return 0, false
 }
 
-func runCommandSync(args []string) (error, int, bool) {
+func runCommandSync(args []string, allocatePty bool) (error, int, bool) {
 
 	// Connect to the dbus session to talk with flatpak-session-helper process.
 	conn, err := dbus.ConnectSessionBus()
@@ -65,18 +65,22 @@ func runCommandSync(args []string) (error, int, bool) {
 		argv[i] = nullTerminatedByteString(arg)
 	}
 	envs := map[string]string{"TERM": os.Getenv("TERM")}
-
-	pty, err := createPty()
-	if err != nil {
-		log.Fatalln(err)
-	}
-	pty.Start()
-	defer pty.Terminate()
-
 	fds := map[uint32]dbus.UnixFD{
-		0: dbus.UnixFD(pty.Stdin().Fd()),
-		1: dbus.UnixFD(pty.Stdout().Fd()),
-		2: dbus.UnixFD(pty.Stderr().Fd()),
+		0: dbus.UnixFD(os.Stdin.Fd()),
+		1: dbus.UnixFD(os.Stdout.Fd()),
+		2: dbus.UnixFD(os.Stderr.Fd()),
+	}
+	if allocatePty {
+		pty, err := createPty()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		pty.Start()
+		defer pty.Terminate()
+
+		fds[0] = dbus.UnixFD(pty.Stdin().Fd())
+		fds[1] = dbus.UnixFD(pty.Stdout().Fd())
+		fds[2] = dbus.UnixFD(pty.Stderr().Fd())
 	}
 
 	flags := uint32(0)
@@ -114,7 +118,15 @@ func main() {
 		return
 	}
 
-	_, exitCode, exited := runCommandSync(os.Args[1:])
+	allocatePty := true
+	command := os.Args[1:]
+
+	if os.Args[1] == "--no-pty" {
+		command = os.Args[2:]
+		allocatePty = false
+	}
+
+	_, exitCode, exited := runCommandSync(command, allocatePty)
 	if exited {
 		os.Exit(exitCode)
 	}
