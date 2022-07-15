@@ -9,12 +9,18 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-func nullTerminatedByteString(s string) []byte {
-	return append([]byte(s), 0)
-}
+const USAGE = `Usage: %s [options] COMMAND [arguments...]
+		
+Accepted options:
+	--no-pty	do not allocate a pseudo-terminal for the host process
+`
 
 // Version is the current value injected at build time.
 var Version string
+
+func nullTerminatedByteString(s string) []byte {
+	return append([]byte(s), 0)
+}
 
 // Extract exit code from waitpid(2) status
 func interpretWaitStatus(status uint32) (int, bool) {
@@ -111,7 +117,7 @@ func runCommandSync(args []string, allocatePty bool) (int, error) {
 
 func main() {
 	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
-		fmt.Fprintf(os.Stderr, "usage: %s command [arguments ...]", os.Args[0])
+		fmt.Fprintf(os.Stderr, USAGE, os.Args[0])
 		return
 	}
 
