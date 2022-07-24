@@ -21,7 +21,7 @@ Example of creating a shim for the `flatpak` command:
 
 $ flatpak --version
 zsh: command not found: flatpak
-$ ln -s /usr/local/bin/flatpak /usr/local/bin/host-spawn
+$ ln -s /usr/local/bin/host-spawn /usr/local/bin/flatpak
 # Now the flatpak command will be executed on the host
 $ flatpak --version
 Flatpak 1.12.7
