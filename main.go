@@ -1,22 +1,23 @@
-// Flatpak spawn simple reimplementation
 package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/godbus/dbus/v5"
 )
 
-const USAGE = `Usage: %s [options] COMMAND [arguments...]
-		
-Accepted options:
-	--no-pty	do not allocate a pseudo-terminal for the host process
-`
-
 // Version is the current value injected at build time.
-var Version string
+var Version string = "HEAD"
+
+// Command line options
+var flagNoPty = flag.Bool("no-pty", false, "do not allocate a pseudo-terminal for the host process")
+var flagVersion = flag.Bool("version", false, "show this program's version")
+
+const OUR_BASENAME = "host-spawn"
 
 func nullTerminatedByteString(s string) []byte {
 	return append([]byte(s), 0)
@@ -115,26 +116,41 @@ func runCommandSync(args []string, allocatePty bool) (int, error) {
 	panic("unreachable")
 }
 
-func main() {
-	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" {
-		fmt.Fprintf(os.Stderr, USAGE, os.Args[0])
-		return
+func parseArguments() {
+	const USAGE_PREAMBLE = `Usage: %s [options] COMMAND [arguments...]
+
+Accepted options:
+`
+
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, USAGE_PREAMBLE, os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(0)
 	}
 
-	// Version flag
-	if os.Args[1] == "-v" || os.Args[1] == "--version" {
+	flag.Parse()
+
+	if *flagVersion {
 		fmt.Println(Version)
+		os.Exit(0)
+	}
+}
+
+func main() {
+	var command []string
+
+	basename := path.Base(os.Args[0])
+
+	// Check if we're shimming a host command
+	if basename == OUR_BASENAME {
+		parseArguments()
+		command = flag.Args()
+	} else {
+		fmt.Fprintln(os.Stderr, "shimming feature not implemented yet")
 		return
 	}
 
-	allocatePty := true
-	command := os.Args[1:]
-
-	if os.Args[1] == "--no-pty" {
-		command = os.Args[2:]
-		allocatePty = false
-	}
-
+	allocatePty := !*flagNoPty
 	exitCode, err := runCommandSync(command, allocatePty)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
