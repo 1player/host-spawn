@@ -146,8 +146,7 @@ func main() {
 		parseArguments()
 		command = flag.Args()
 	} else {
-		fmt.Fprintln(os.Stderr, "shimming feature not implemented yet")
-		return
+		command = append([]string{basename}, os.Args[1:]...)
 	}
 
 	allocatePty := !*flagNoPty
