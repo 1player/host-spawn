@@ -1,18 +1,20 @@
 # host-spawn
 
-A reimplementation of `flatpak-spawn --host`. Run commands on your host machine.
+A reimplementation of `flatpak-spawn --host`.
 
-Improvements over the original:
+Run commands on your host machine from inside your flatpak sandbox, [toolbox](https://github.com/containers/toolbox) or [distrobox](https://github.com/89luca89/distrobox) containers.
+
+## Improvements over the original
 
 * Allocates a pty for the spawned process, fixing the following upstream issues: https://github.com/flatpak/flatpak/issues/3697, https://github.com/flatpak/flatpak/issues/3285 and https://github.com/flatpak/flatpak-xdg-utils/issues/57
 * Handles SIGWINCH (terminal size changes)
 * Passes through `$TERM` environment variable
-* Shim host binaries with a symlink, see section below
+* Shims host binaries when symlinked, see section below
 
 ## Creating shims for host binaries
 
 If there's a process that only makes sense to be executed on the host system, you can
-create a symlink to it somewhere in your $PATH and it'll always be executed on the host.
+create a symlink to it somewhere in your $PATH and it'll always be executed through `host-spawn`.
 
 Example of creating a shim for the `flatpak` command:
 
@@ -22,7 +24,7 @@ Example of creating a shim for the `flatpak` command:
 $ flatpak --version
 zsh: command not found: flatpak
 $ ln -s /usr/local/bin/host-spawn /usr/local/bin/flatpak
-# Now the flatpak command will be executed on the host
+# Now the flatpak command will always be executed on the host
 $ flatpak --version
 Flatpak 1.12.7
 ```
