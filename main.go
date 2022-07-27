@@ -117,7 +117,9 @@ func runCommandSync(args []string, allocatePty bool) (int, error) {
 }
 
 func parseArguments() {
-	const USAGE_PREAMBLE = `Usage: %s [options] COMMAND [arguments...]
+	const USAGE_PREAMBLE = `Usage: %s [options] [ COMMAND [ arguments... ] ]
+
+If COMMAND is not set, spawn a shell on the host.
 
 Accepted options:
 `
@@ -145,6 +147,11 @@ func main() {
 	if basename == OUR_BASENAME {
 		parseArguments()
 		command = flag.Args()
+
+		// If no command is given, spawn a shell
+		if len(command) == 0 {
+			command = []string{"sh", "-c", "$SHELL"}
+		}
 	} else {
 		command = append([]string{basename}, os.Args[1:]...)
 	}
