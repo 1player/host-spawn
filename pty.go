@@ -6,8 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"sync"
-	"syscall"
-	"unsafe"
 
 	"github.com/pkg/term/termios"
 	"golang.org/x/sys/unix"
@@ -95,12 +93,12 @@ func (p *pty) Terminate() {
 }
 
 func (p *pty) handleSignals() {
-	signal.Notify(p.signals, syscall.SIGWINCH)
+	signal.Notify(p.signals, unix.SIGWINCH)
 
 	go func() {
 		for signal := range p.signals {
 			switch signal {
-			case syscall.SIGWINCH:
+			case unix.SIGWINCH:
 				_ = p.inheritWindowSize()
 			}
 		}
@@ -108,11 +106,11 @@ func (p *pty) handleSignals() {
 }
 
 func (p *pty) inheritWindowSize() error {
-	var winsz winsize
-	if err := getWinsz(os.Stdout, &winsz); err != nil {
+	winsz, err := unix.IoctlGetWinsize(int(os.Stdout.Fd()), unix.TIOCGWINSZ)
+	if err != nil {
 		return err
 	}
-	if err := setWinsz(p.master, &winsz); err != nil {
+	if err := unix.IoctlSetWinsize(int(p.master.Fd()), unix.TIOCSWINSZ, winsz); err != nil {
 		return err
 	}
 	return nil
@@ -125,7 +123,7 @@ func (p *pty) makeStdinRaw() error {
 
 	// We might get ENOTTY if stdin is redirected
 	if err != nil {
-		if errno, ok := err.(syscall.Errno); ok {
+		if errno, ok := err.(unix.Errno); ok {
 			if errno == unix.ENOTTY {
 				return nil
 			} else {
@@ -149,26 +147,4 @@ func (p *pty) restoreStdin() {
 	if p.stdinIsatty {
 		_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
 	}
-}
-
-func getWinsz(file *os.File, winsz *winsize) error {
-	_, _, errno := syscall.Syscall(
-		syscall.SYS_IOCTL, uintptr(file.Fd()), uintptr(syscall.TIOCGWINSZ),
-		uintptr(unsafe.Pointer(winsz)),
-	)
-	if errno != 0 {
-		return errno
-	}
-	return nil
-}
-
-func setWinsz(file *os.File, winsz *winsize) error {
-	_, _, errno := syscall.Syscall(
-		syscall.SYS_IOCTL, uintptr(file.Fd()), uintptr(syscall.TIOCSWINSZ),
-		uintptr(unsafe.Pointer(winsz)),
-	)
-	if errno != 0 {
-		return errno
-	}
-	return nil
 }
