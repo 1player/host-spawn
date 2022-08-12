@@ -82,7 +82,10 @@ func runCommandSync(args []string, allocatePty bool) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		pty.Start()
+		err = pty.Start()
+		if err != nil {
+			return 0, err
+		}
 		defer pty.Terminate()
 
 		fds[0] = dbus.UnixFD(pty.Stdin().Fd())
