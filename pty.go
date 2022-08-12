@@ -25,6 +25,7 @@ type pty struct {
 	signals chan os.Signal
 
 	previousStdinTermios unix.Termios
+	stdinIsatty          bool
 
 	master *os.File
 	slave  *os.File
@@ -119,11 +120,23 @@ func (p *pty) inheritWindowSize() error {
 
 func (p *pty) makeStdinRaw() error {
 	var stdinTermios unix.Termios
-	if err := termios.Tcgetattr(os.Stdin.Fd(), &stdinTermios); err != nil {
-		return err
+
+	err := termios.Tcgetattr(os.Stdin.Fd(), &stdinTermios)
+
+	// We might get ENOTTY if stdin is redirected
+	if err != nil {
+		if errno, ok := err.(syscall.Errno); ok {
+			if errno == unix.ENOTTY {
+				return nil
+			} else {
+				return err
+			}
+		}
 	}
 
 	p.previousStdinTermios = stdinTermios
+	p.stdinIsatty = true
+
 	termios.Cfmakeraw(&stdinTermios)
 	if err := termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &stdinTermios); err != nil {
 		return err
@@ -133,7 +146,9 @@ func (p *pty) makeStdinRaw() error {
 }
 
 func (p *pty) restoreStdin() {
-	_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
+	if p.stdinIsatty {
+		_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
+	}
 }
 
 func getWinsz(file *os.File, winsz *winsize) error {
