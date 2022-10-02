@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -16,6 +17,7 @@ var Version string = "HEAD"
 // Command line options
 var flagNoPty = flag.Bool("no-pty", false, "do not allocate a pseudo-terminal for the host process")
 var flagVersion = flag.Bool("version", false, "show this program's version")
+var flagEnvironmentVariables = flag.String("env", "", "comma separated list of environment variables to pass to the host process")
 
 const OUR_BASENAME = "host-spawn"
 
@@ -71,7 +73,15 @@ func runCommandSync(args []string, allocatePty bool) (int, error) {
 	for i, arg := range args {
 		argv[i] = nullTerminatedByteString(arg)
 	}
+
 	envs := map[string]string{"TERM": os.Getenv("TERM")}
+	if len(*flagEnvironmentVariables) != 0 {
+		envVars := strings.Split(*flagEnvironmentVariables, ",")
+		for _, e := range envVars {
+			envs = map[string]string{e: os.Getenv(e)}
+		}
+	}
+
 	fds := map[uint32]dbus.UnixFD{
 		0: dbus.UnixFD(os.Stdin.Fd()),
 		1: dbus.UnixFD(os.Stdout.Fd()),
