@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/godbus/dbus/v5"
 )
@@ -14,8 +15,9 @@ import (
 var Version string = "HEAD"
 
 // Command line options
-var flagNoPty = flag.Bool("no-pty", false, "do not allocate a pseudo-terminal for the host process")
-var flagVersion = flag.Bool("version", false, "show this program's version")
+var flagNoPty = flag.Bool("no-pty", false, "Do not allocate a pseudo-terminal for the host process")
+var flagVersion = flag.Bool("version", false, "Show this program's version")
+var flagEnvironmentVariables = flag.String("env", "TERM", "Comma separated list of environment variables to pass to the host process.")
 
 const OUR_BASENAME = "host-spawn"
 
@@ -37,7 +39,7 @@ func interpretWaitStatus(status uint32) (int, bool) {
 	return 0, false
 }
 
-func runCommandSync(args []string, allocatePty bool) (int, error) {
+func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string) (int, error) {
 
 	// Connect to the dbus session to talk with flatpak-session-helper process.
 	conn, err := dbus.ConnectSessionBus()
@@ -71,7 +73,12 @@ func runCommandSync(args []string, allocatePty bool) (int, error) {
 	for i, arg := range args {
 		argv[i] = nullTerminatedByteString(arg)
 	}
-	envs := map[string]string{"TERM": os.Getenv("TERM")}
+
+	envs := make(map[string]string)
+	for _, e := range envsToPassthrough {
+		envs[e] = os.Getenv(e)
+	}
+
 	fds := map[uint32]dbus.UnixFD{
 		0: dbus.UnixFD(os.Stdin.Fd()),
 		1: dbus.UnixFD(os.Stdout.Fd()),
@@ -160,7 +167,10 @@ func main() {
 	}
 
 	allocatePty := !*flagNoPty
-	exitCode, err := runCommandSync(command, allocatePty)
+
+	envsToPassthrough := strings.Split(*flagEnvironmentVariables, ",")
+
+	exitCode, err := runCommandSync(command, allocatePty, envsToPassthrough)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		exitCode = 127
