@@ -14,6 +14,12 @@ import (
 // Version is the current value injected at build time.
 var Version string = "HEAD"
 
+// blocklist contains the list of programs not working well with an allocated pty.
+var blocklist = map[string]bool {
+	"xdg-open": true,
+	"gio": true,
+}
+
 // Command line options
 var flagNoPty = flag.Bool("no-pty", false, "Do not allocate a pseudo-terminal for the host process")
 var flagVersion = flag.Bool("version", false, "Show this program's version")
@@ -166,7 +172,8 @@ func main() {
 		command = append([]string{basename}, os.Args[1:]...)
 	}
 
-	allocatePty := !*flagNoPty
+	// Lookup if this is a blacklisted program, where we won't enable pty.
+	allocatePty := (!*flagNoPty && !blocklist[command[0]])
 
 	envsToPassthrough := strings.Split(*flagEnvironmentVariables, ",")
 
