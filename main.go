@@ -15,12 +15,13 @@ import (
 var Version string = "HEAD"
 
 // blocklist contains the list of programs not working well with an allocated pty.
-var blocklist = map[string]bool {
+var blocklist = map[string]bool{
 	"xdg-open": true,
-	"gio": true,
+	"gio":      true,
 }
 
 // Command line options
+var flagPty = flag.Bool("pty", false, "Force allocate a pseudo-terminal for the host process")
 var flagNoPty = flag.Bool("no-pty", false, "Do not allocate a pseudo-terminal for the host process")
 var flagVersion = flag.Bool("version", false, "Show this program's version")
 var flagEnvironmentVariables = flag.String("env", "TERM", "Comma separated list of environment variables to pass to the host process.")
@@ -173,7 +174,12 @@ func main() {
 	}
 
 	// Lookup if this is a blacklisted program, where we won't enable pty.
-	allocatePty := (!*flagNoPty && !blocklist[command[0]])
+	allocatePty := !blocklist[command[0]]
+	if *flagPty {
+		allocatePty = true
+	} else if *flagNoPty {
+		allocatePty = false
+	}
 
 	envsToPassthrough := strings.Split(*flagEnvironmentVariables, ",")
 
