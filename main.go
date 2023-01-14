@@ -140,10 +140,18 @@ If COMMAND is not set, spawn a shell on the host.
 
 Accepted options:
 `
+	const USAGE_FOOTER = `--
+
+If neither pty option is passed, default to allocating a pseudo-terminal unless
+the command is known for misbehaving when attached to a pty.
+
+For more details visit https://github.com/1player/host-spawn/issues/12
+`
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, USAGE_PREAMBLE, os.Args[0])
 		flag.PrintDefaults()
+		fmt.Fprintf(os.Stderr, USAGE_FOOTER)
 		os.Exit(0)
 	}
 
@@ -173,7 +181,7 @@ func main() {
 		command = append([]string{basename}, os.Args[1:]...)
 	}
 
-	// Lookup if this is a blacklisted program, where we won't enable pty.
+	// Lookup if this is a blocklisted program, where we won't enable pty.
 	allocatePty := !blocklist[command[0]]
 	if *flagPty {
 		allocatePty = true
