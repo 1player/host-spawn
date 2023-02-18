@@ -1,6 +1,6 @@
 ## Unreleased
 
-* Do not propagate environment variables that are not set (#17)
+* Do not propagate environment variables that are not set (https://github.com/1player/host-spawn/issues/17)
 
 ## 1.4.0 (14 Jan 2023)
 
@@ -18,7 +18,7 @@
 
 ### Fixed
 
-* Don't fail if stdin is redirected (#11)
+* Don't fail if stdin is redirected (https://github.com/1player/host-spawn/issues/11)
 
 ## 1.2.0 (27 Jul 2022)
 
@@ -36,7 +36,7 @@
 
 ### Changed
 
-* Added `--no-pty` flag to work around misbehaving processes that terminate too early. See #7. Thanks @89luca89
+* Added `--no-pty` flag to work around misbehaving processes that terminate too early. See https://github.com/1player/host-spawn/issues/7. Thanks @89luca89
 
 ## 1.0.1 (11 Jul 2022)
 
