@@ -83,7 +83,9 @@ func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string)
 
 	envs := make(map[string]string)
 	for _, e := range envsToPassthrough {
-		envs[e] = os.Getenv(e)
+		if v, ok := os.LookupEnv(e); ok {
+			envs[e] = v
+		}
 	}
 
 	fds := map[uint32]dbus.UnixFD{
