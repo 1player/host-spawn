@@ -1,4 +1,6 @@
-## Unreleased
+## 1.4.1 (18 Feb 2023)
+
+### Fixed
 
 * Do not propagate environment variables that are not set (https://github.com/1player/host-spawn/issues/17)
 
