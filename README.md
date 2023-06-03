@@ -16,6 +16,8 @@ Run commands on your host machine from inside your flatpak sandbox, [toolbox](ht
 If there's a process that only makes sense to be executed on the host system, you can
 create a symlink to it somewhere in your $PATH and it'll always be executed through `host-spawn`.
 
+*Note:* you will want to store the symlink in a location visible only to the container, to avoid an infinite loop. If you are using toolbox/distrobox, this means anywhere outside your home directory. I recommend `/usr/local/bin`. See https://github.com/1player/host-spawn/issues/19 for details.
+
 Example of creating a shim for the `flatpak` command:
 
 ```
