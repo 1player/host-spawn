@@ -18,6 +18,7 @@ var Version string = "HEAD"
 var blocklist = map[string]bool{
 	"xdg-open": true,
 	"gio":      true,
+	"podman":   true,
 }
 
 // Command line options
