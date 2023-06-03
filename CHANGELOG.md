@@ -1,3 +1,9 @@
+## 1.4.2 (3 Jun 2023)
+
+### Fixed
+
+* Do not allocate a pty for `podman` (https://github.com/1player/host-spawn/issues/21). Thanks @lbssousa.
+
 ## 1.4.1 (18 Feb 2023)
 
 ### Fixed
