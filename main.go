@@ -149,6 +149,7 @@ func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string)
 				break
 			} else if unixSignal == unix.SIGURG {
 				// Ignore runtime-generated SIGURG messages
+				// See https://github.com/golang/go/issues/37942
 				break
 			}
 			passthroughHostSignal(proxy, pid, unixSignal)
