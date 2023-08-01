@@ -4,7 +4,6 @@ package main
 import (
 	"io"
 	"os"
-	"os/signal"
 	"sync"
 
 	"github.com/pkg/term/termios"
@@ -60,8 +59,6 @@ func (p *pty) Start() error {
 		return err
 	}
 
-	p.handleSignals()
-
 	p.wg.Add(2)
 
 	go func() {
@@ -90,19 +87,6 @@ func (p *pty) Terminate() {
 	// spawned process send an EOF when its fds are closed,
 	// so for this reason the io.Copy calls above never return.
 	//p.wg.Wait()
-}
-
-func (p *pty) handleSignals() {
-	signal.Notify(p.signals, unix.SIGWINCH)
-
-	go func() {
-		for signal := range p.signals {
-			switch signal {
-			case unix.SIGWINCH:
-				_ = p.inheritWindowSize()
-			}
-		}
-	}()
 }
 
 func (p *pty) inheritWindowSize() error {

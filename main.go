@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/godbus/dbus/v5"
+	"golang.org/x/sys/unix"
+	"os/signal"
+	"syscall"
 )
 
 // Version is the current value injected at build time.
@@ -49,8 +52,15 @@ func interpretWaitStatus(status uint32) (int, bool) {
 	return 0, false
 }
 
-func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string) (int, error) {
+func passthroughHostSignal(proxy dbus.BusObject, pid uint32, signal syscall.Signal) {
+	// Pass through the signal but ignore any error,
+	// as there is nothing much we can do about them
+	_ = proxy.Call("org.freedesktop.Flatpak.Development.HostCommandSignal", 0,
+		pid, uint32(signal), false,
+	).Store()
+}
 
+func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string) (int, error) {
 	// Connect to the dbus session to talk with flatpak-session-helper process.
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -65,8 +75,8 @@ func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string)
 	); err != nil {
 		return 0, err
 	}
-	signals := make(chan *dbus.Signal, 1)
-	conn.Signal(signals)
+	dbusSignals := make(chan *dbus.Signal, 1)
+	conn.Signal(dbusSignals)
 
 	// Spawn host command
 	proxy := conn.Object("org.freedesktop.Flatpak", "/org/freedesktop/Flatpak/Development")
@@ -96,8 +106,9 @@ func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string)
 		1: dbus.UnixFD(os.Stdout.Fd()),
 		2: dbus.UnixFD(os.Stderr.Fd()),
 	}
+	var pty *pty
 	if allocatePty {
-		pty, err := createPty()
+		pty, err = createPty()
 		if err != nil {
 			return 0, err
 		}
@@ -124,18 +135,37 @@ func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string)
 		return 0, err
 	}
 
-	// Wait for HostCommandExited to fire
-	for message := range signals {
-		waitStatus := message.Body[1].(uint32)
-		status, exited := interpretWaitStatus(waitStatus)
-		if exited {
-			return status, nil
-		} else {
-			return status, errors.New("child process did not terminate cleanly")
+	hostSignals := make(chan os.Signal, 1)
+	signal.Notify(hostSignals)
+
+	// Wait for either host or DBus signals
+	for {
+		select {
+		case signal := <-hostSignals:
+			unixSignal := signal.(syscall.Signal)
+
+			if unixSignal == unix.SIGWINCH && pty != nil {
+				pty.inheritWindowSize()
+				break
+			} else if unixSignal == unix.SIGURG {
+				// Ignore runtime-generated SIGURG messages
+				break
+			}
+			passthroughHostSignal(proxy, pid, unixSignal)
+
+		case message := <-dbusSignals:
+			// HostCommandExited has fired
+			waitStatus := message.Body[1].(uint32)
+			status, exited := interpretWaitStatus(waitStatus)
+			if exited {
+				return status, nil
+			} else {
+				return status, errors.New("child process did not terminate cleanly")
+			}
 		}
 	}
 
-	panic("unreachable")
+	// unreachable
 }
 
 func parseArguments() {
@@ -198,7 +228,6 @@ func main() {
 
 	exitCode, err := runCommandSync(command, allocatePty, envsToPassthrough)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		exitCode = 127
 	}
 
