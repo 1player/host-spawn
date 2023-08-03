@@ -16,9 +16,11 @@ var Version string = "HEAD"
 
 // blocklist contains the list of programs not working well with an allocated pty.
 var blocklist = map[string]bool{
-	"xdg-open": true,
-	"gio":      true,
-	"podman":   true,
+	"gio":       true,
+	"podman":    true,
+	"kde-open":  true,
+	"kde-open5": true,
+	"xdg-open":  true,
 }
 
 // Command line options
