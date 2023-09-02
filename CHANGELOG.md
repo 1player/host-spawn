@@ -1,3 +1,9 @@
+## 1.5.0 (2 Sep 2023)
+
+### Added
+
+* Forward signals to the host process (https://github.com/1player/host-spawn/issues/18)
+
 ## 1.4.2 (3 Jun 2023)
 
 ### Fixed
