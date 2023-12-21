@@ -1,3 +1,10 @@
+## 1.5.1 (21 Dec 2023)
+
+### Minor
+
+* Update golang.org/x/sys dependency to v0.15.0. Thanks @klugier.
+* Refactor build scripts to target single architecture
+
 ## 1.5.0 (2 Sep 2023)
 
 ### Added
