@@ -22,7 +22,7 @@ jobs:
         env:
           VERSION: ${{ github.event.release.tag_name }}
         run: |
-          ./build.sh
+          ./build-all.sh
 
       - name: Upload the artifacts
         uses: skx/github-action-publish-binaries@release-1.3

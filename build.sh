@@ -2,30 +2,43 @@
 
 set -euo pipefail
 
-ARCH="
-    386-i386
-    386-i686
-    amd64-x86_64
-    arm-armv7
-    arm64-aarch64
-"
-
+ARCH="$1" # in `uname -m` format
 ROOT_DIR=$(dirname "$0")
 VERSION=${VERSION:-HEAD}
 
 cd "$ROOT_DIR"
-
 mkdir -p build
 
-echo "$VERSION"
+case $ARCH in
+    source)
+        git clean -fdx -e build
+        go mod vendor
+        tar --create --zst --exclude build --file build/host-spawn-vendor.tar.zst "$ROOT_DIR"
+        exit
+        ;;
 
-for architecture in ${ARCH}; do
-	CGO_ENABLED=0 GOARCH="$(echo "${architecture}" | cut -d'-' -f1)" go build \
-		-ldflags  "-X main.Version=$VERSION" \
-		-o build/host-spawn-"$(echo "${architecture}" | cut -d'-' -f2)"
-done
+    i386 | i686)
+        GOARCH=386
+        ;;
 
-# Create source tarball including vendored dependencies
-git clean -fdx -e build
-go mod vendor
-tar --create --zst --exclude build --file build/host-spawn-vendor.tar.zst "$ROOT_DIR"
+    x86_64)
+        GOARCH=amd64
+        ;;
+
+    armv7)
+        GOARCH=arm
+        ;;
+
+    aarch64)
+        GOARCH=arm64
+        ;;
+
+    *)
+        GOARCH=$ARCH
+        ;;
+esac
+
+export GOARCH
+CGO_ENABLED=0 go build \
+		      -ldflags  "-X main.Version=$VERSION" \
+		      -o "build/host-spawn-$ARCH"
