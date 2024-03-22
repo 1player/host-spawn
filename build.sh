@@ -32,7 +32,9 @@ case $ARCH in
     aarch64)
         GOARCH=arm64
         ;;
-
+    loongarch64)
+        GOARCH=loong64
+	;;
     *)
         GOARCH=$ARCH
         ;;
