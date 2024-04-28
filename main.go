@@ -31,7 +31,7 @@ var flagPty = flag.Bool("pty", false, "Force allocate a pseudo-terminal for the 
 var flagNoPty = flag.Bool("no-pty", false, "Do not allocate a pseudo-terminal for the host process")
 var flagVersion = flag.Bool("version", false, "Show this program's version")
 var flagEnvironmentVariables = flag.String("env", "TERM", "Comma separated list of environment variables to pass to the host process.")
-var workingDirectory = flag.String("directory", "", "The working directory in which to run the command.")
+var flagWorkingDirectory = flag.String("cwd", "", "Change working directory of the spawned process")
 
 const OUR_BASENAME = "host-spawn"
 
@@ -61,7 +61,7 @@ func passthroughHostSignal(proxy dbus.BusObject, pid uint32, signal syscall.Sign
 	).Store()
 }
 
-func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string) (int, error) {
+func runCommandSync(args []string, cwd string, allocatePty bool, envsToPassthrough []string) (int, error) {
 	// Connect to the dbus session to talk with flatpak-session-helper process.
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
@@ -81,17 +81,6 @@ func runCommandSync(args []string, allocatePty bool, envsToPassthrough []string)
 
 	// Spawn host command
 	proxy := conn.Object("org.freedesktop.Flatpak", "/org/freedesktop/Flatpak/Development")
-
-	var cwd string
-	if workingDirectory != nil && *workingDirectory != "" {
-		cwd = *workingDirectory
-	} else {
-		var err error
-		cwd, err = os.Getwd()
-		if err != nil {
-			return 0, err
-		}
-	}
 
 	cwdPath := nullTerminatedByteString(cwd)
 
@@ -232,9 +221,22 @@ func main() {
 		allocatePty = false
 	}
 
+	// Get working directory
+	var cwd string
+	if *flagWorkingDirectory != "" {
+		cwd = *flagWorkingDirectory
+	} else {
+		var err error
+		cwd, err = os.Getwd()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(128)
+		}
+	}
+
 	envsToPassthrough := strings.Split(*flagEnvironmentVariables, ",")
 
-	exitCode, err := runCommandSync(command, allocatePty, envsToPassthrough)
+	exitCode, err := runCommandSync(command, cwd, allocatePty, envsToPassthrough)
 	if err != nil {
 		exitCode = 127
 	}
