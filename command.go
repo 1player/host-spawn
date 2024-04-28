@@ -11,10 +11,10 @@ import (
 )
 
 type Command struct {
-	Args              []string
-	WorkingDirectory  string
-	AllocatePty       bool
-	EnvsToPassthrough []string
+	Args             []string
+	WorkingDirectory string
+	AllocatePty      bool
+	EnvVars          map[string]string
 
 	proxy dbus.BusObject
 	pty   *pty
@@ -73,13 +73,6 @@ func (c *Command) SpawnAndWait() (int, error) {
 		argv[i] = nullTerminatedByteString(arg)
 	}
 
-	envs := make(map[string]string)
-	for _, e := range c.EnvsToPassthrough {
-		if v, ok := os.LookupEnv(e); ok {
-			envs[e] = v
-		}
-	}
-
 	fds := map[uint32]dbus.UnixFD{
 		0: dbus.UnixFD(os.Stdin.Fd()),
 		1: dbus.UnixFD(os.Stdout.Fd()),
@@ -105,7 +98,7 @@ func (c *Command) SpawnAndWait() (int, error) {
 
 	// Call command on the host
 	err = c.proxy.Call("org.freedesktop.Flatpak.Development.HostCommand", 0,
-		cwdPath, argv, fds, envs, flags,
+		cwdPath, argv, fds, c.EnvVars, flags,
 	).Store(&c.pid)
 
 	// an error occurred this early, most likely command not found.

@@ -102,13 +102,20 @@ func main() {
 		}
 	}
 
-	envsToPassthrough := strings.Split(*flagEnvironmentVariables, ",")
+	// Lookup and passthrough environment variables
+	envVars := make(map[string]string)
+	for _, k := range strings.Split(*flagEnvironmentVariables, ",") {
+		if v, ok := os.LookupEnv(k); ok {
+			envVars[k] = v
+		}
+	}
 
+	// OK, let's go
 	command := Command{
-		Args:              args,
-		WorkingDirectory:  wd,
-		AllocatePty:       allocatePty,
-		EnvsToPassthrough: envsToPassthrough,
+		Args:             args,
+		WorkingDirectory: wd,
+		AllocatePty:      allocatePty,
+		EnvVars:          envVars,
 	}
 
 	exitCode, err := command.SpawnAndWait()
