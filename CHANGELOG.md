@@ -1,3 +1,10 @@
+## 1.6.0 (28 Apr 2024)
+
+### Added
+
+* Build and distribute binary for loongarch64. Thanks @shenmo7192.
+* Add `-cwd` flag to change the working directory of the spawned process. Thanks @someone13574.
+
 ## 1.5.1 (21 Dec 2023)
 
 ### Minor
