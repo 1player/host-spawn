@@ -1,17 +1,11 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path"
 	"strings"
-
-	"github.com/godbus/dbus/v5"
-	"golang.org/x/sys/unix"
-	"os/signal"
-	"syscall"
 )
 
 // Version is the current value injected at build time.
@@ -35,135 +29,9 @@ var flagWorkingDirectory = flag.String("cwd", "", "Change working directory of t
 
 const OUR_BASENAME = "host-spawn"
 
-func nullTerminatedByteString(s string) []byte {
-	return append([]byte(s), 0)
-}
-
-// Extract exit code from waitpid(2) status
-func interpretWaitStatus(status uint32) (int, bool) {
-	// From /usr/include/bits/waitstatus.h
-	WTERMSIG := status & 0x7f
-	WIFEXITED := WTERMSIG == 0
-
-	if WIFEXITED {
-		WEXITSTATUS := (status & 0xff00) >> 8
-		return int(WEXITSTATUS), true
-	}
-
-	return 0, false
-}
-
-func passthroughHostSignal(proxy dbus.BusObject, pid uint32, signal syscall.Signal) {
-	// Pass through the signal but ignore any error,
-	// as there is nothing much we can do about them
-	_ = proxy.Call("org.freedesktop.Flatpak.Development.HostCommandSignal", 0,
-		pid, uint32(signal), false,
-	).Store()
-}
-
-func runCommandSync(args []string, cwd string, allocatePty bool, envsToPassthrough []string) (int, error) {
-	// Connect to the dbus session to talk with flatpak-session-helper process.
-	conn, err := dbus.ConnectSessionBus()
-	if err != nil {
-		return 0, err
-	}
-	defer conn.Close()
-
-	// Subscribe to HostCommandExited messages
-	if err = conn.AddMatchSignal(
-		dbus.WithMatchInterface("org.freedesktop.Flatpak.Development"),
-		dbus.WithMatchMember("HostCommandExited"),
-	); err != nil {
-		return 0, err
-	}
-	dbusSignals := make(chan *dbus.Signal, 1)
-	conn.Signal(dbusSignals)
-
-	// Spawn host command
-	proxy := conn.Object("org.freedesktop.Flatpak", "/org/freedesktop/Flatpak/Development")
-
-	cwdPath := nullTerminatedByteString(cwd)
-
-	argv := make([][]byte, len(args))
-	for i, arg := range args {
-		argv[i] = nullTerminatedByteString(arg)
-	}
-
-	envs := make(map[string]string)
-	for _, e := range envsToPassthrough {
-		if v, ok := os.LookupEnv(e); ok {
-			envs[e] = v
-		}
-	}
-
-	fds := map[uint32]dbus.UnixFD{
-		0: dbus.UnixFD(os.Stdin.Fd()),
-		1: dbus.UnixFD(os.Stdout.Fd()),
-		2: dbus.UnixFD(os.Stderr.Fd()),
-	}
-	var pty *pty
-	if allocatePty {
-		pty, err = createPty()
-		if err != nil {
-			return 0, err
-		}
-		err = pty.Start()
-		if err != nil {
-			return 0, err
-		}
-		defer pty.Terminate()
-
-		fds[0] = dbus.UnixFD(pty.Stdin().Fd())
-		fds[1] = dbus.UnixFD(pty.Stdout().Fd())
-		fds[2] = dbus.UnixFD(pty.Stderr().Fd())
-	}
-
-	flags := uint32(0)
-
-	// Call command on the host
-	var pid uint32
-	err = proxy.Call("org.freedesktop.Flatpak.Development.HostCommand", 0,
-		cwdPath, argv, fds, envs, flags,
-	).Store(&pid)
-
-	// an error occurred this early, most likely command not found.
-	if err != nil {
-		return 0, err
-	}
-
-	hostSignals := make(chan os.Signal, 1)
-	signal.Notify(hostSignals)
-
-	// Wait for either host or DBus signals
-	for {
-		select {
-		case signal := <-hostSignals:
-			unixSignal := signal.(syscall.Signal)
-
-			if unixSignal == unix.SIGWINCH && pty != nil {
-				pty.inheritWindowSize()
-				break
-			} else if unixSignal == unix.SIGURG {
-				// Ignore runtime-generated SIGURG messages
-				// See https://github.com/golang/go/issues/37942
-				break
-			}
-			passthroughHostSignal(proxy, pid, unixSignal)
-
-		case message := <-dbusSignals:
-			// HostCommandExited has fired
-			waitStatus := message.Body[1].(uint32)
-			status, exited := interpretWaitStatus(waitStatus)
-			if exited {
-				return status, nil
-			} else {
-				return status, errors.New("child process did not terminate cleanly")
-			}
-		}
-	}
-
-	// unreachable
-}
+// The exit code we return to identify an error in host-spawn itself,
+// rather than in the host process
+const OUR_EXIT_CODE = 127
 
 func parseArguments() {
 	const USAGE_PREAMBLE = `Usage: %s [options] [ COMMAND [ arguments... ] ]
@@ -196,25 +64,25 @@ For more details visit https://github.com/1player/host-spawn/issues/12
 }
 
 func main() {
-	var command []string
+	var args []string
 
 	basename := path.Base(os.Args[0])
 
 	// Check if we're shimming a host command
 	if basename == OUR_BASENAME {
 		parseArguments()
-		command = flag.Args()
+		args = flag.Args()
 
 		// If no command is given, spawn a shell
-		if len(command) == 0 {
-			command = []string{"sh", "-c", "$SHELL"}
+		if len(args) == 0 {
+			args = []string{"sh", "-c", "$SHELL"}
 		}
 	} else {
-		command = append([]string{basename}, os.Args[1:]...)
+		args = append([]string{basename}, os.Args[1:]...)
 	}
 
 	// Lookup if this is a blocklisted program, where we won't enable pty.
-	allocatePty := !blocklist[command[0]]
+	allocatePty := !blocklist[args[0]]
 	if *flagPty {
 		allocatePty = true
 	} else if *flagNoPty {
@@ -222,23 +90,30 @@ func main() {
 	}
 
 	// Get working directory
-	var cwd string
+	var wd string
 	if *flagWorkingDirectory != "" {
-		cwd = *flagWorkingDirectory
+		wd = *flagWorkingDirectory
 	} else {
 		var err error
-		cwd, err = os.Getwd()
+		wd, err = os.Getwd()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-			os.Exit(128)
+			os.Exit(OUR_EXIT_CODE)
 		}
 	}
 
 	envsToPassthrough := strings.Split(*flagEnvironmentVariables, ",")
 
-	exitCode, err := runCommandSync(command, cwd, allocatePty, envsToPassthrough)
+	command := Command{
+		Args:              args,
+		WorkingDirectory:  wd,
+		AllocatePty:       allocatePty,
+		EnvsToPassthrough: envsToPassthrough,
+	}
+
+	exitCode, err := command.SpawnAndWait()
 	if err != nil {
-		exitCode = 127
+		exitCode = OUR_EXIT_CODE
 	}
 
 	os.Exit(exitCode)
