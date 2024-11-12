@@ -120,6 +120,7 @@ func main() {
 
 	exitCode, err := command.SpawnAndWait()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		exitCode = OUR_EXIT_CODE
 	}
 
