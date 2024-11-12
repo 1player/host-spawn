@@ -2,12 +2,14 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
+
+	"os/signal"
+	"syscall"
 
 	"github.com/godbus/dbus/v5"
 	"golang.org/x/sys/unix"
-	"os/signal"
-	"syscall"
 )
 
 type Command struct {
@@ -134,12 +136,15 @@ func (c *Command) waitForSignals(dbusSignals chan *dbus.Signal) (int, error) {
 
 		case message := <-dbusSignals:
 			// HostCommandExited has fired
-			waitStatus := message.Body[1].(uint32)
-			status, exited := interpretWaitStatus(waitStatus)
-			if exited {
-				return status, nil
+			if waitStatus, ok := message.Body[1].(uint32); ok {
+				status, exited := interpretWaitStatus(waitStatus)
+				if exited {
+					return status, nil
+				} else {
+					return status, errors.New("child process did not terminate cleanly")
+				}
 			} else {
-				return status, errors.New("child process did not terminate cleanly")
+				return 0, errors.New(fmt.Sprintf("unexpected DBus message %#v", message))
 			}
 		}
 	}
