@@ -69,7 +69,7 @@ func main() {
 	basename := path.Base(os.Args[0])
 
 	// Check if we're shimming a host command
-	if basename == OUR_BASENAME {
+	if strings.HasPrefix(basename, OUR_BASENAME) {
 		parseArguments()
 		args = flag.Args()
 
