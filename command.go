@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"os"
 
 	"os/signal"
@@ -135,16 +134,17 @@ func (c *Command) waitForSignals(dbusSignals chan *dbus.Signal) (int, error) {
 			_ = c.signal(unixSignal)
 
 		case message := <-dbusSignals:
-			// HostCommandExited has fired
-			if waitStatus, ok := message.Body[1].(uint32); ok {
-				status, exited := interpretWaitStatus(waitStatus)
-				if exited {
-					return status, nil
-				} else {
-					return status, errors.New("child process did not terminate cleanly")
-				}
+			// Wait for HostCommandExited message
+			if message.Name != "org.freedesktop.Flatpak.Development.HostCommandExited" {
+				continue
+			}
+
+			waitStatus := message.Body[1].(uint32)
+			status, exited := interpretWaitStatus(waitStatus)
+			if exited {
+				return status, nil
 			} else {
-				return 0, errors.New(fmt.Sprintf("unexpected DBus message %#v", message))
+				return status, errors.New("child process did not terminate cleanly")
 			}
 		}
 	}
