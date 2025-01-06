@@ -81,8 +81,13 @@ func main() {
 		args = append([]string{basename}, os.Args[1:]...)
 	}
 
-	// Lookup if this is a blocklisted program, where we won't enable pty.
-	allocatePty := !blocklist[args[0]]
+	// Allocate a pty if:
+	// - stdout isn't redirected
+	// - this isn't a blocklisted program
+	// Any of the --pty or --no-pty options will take precedence
+
+	allocatePty := !isStdoutRedirected() && !blocklist[args[0]]
+
 	if *flagPty {
 		allocatePty = true
 	} else if *flagNoPty {

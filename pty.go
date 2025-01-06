@@ -132,3 +132,11 @@ func (p *pty) restoreStdin() {
 		_ = termios.Tcsetattr(os.Stdin.Fd(), termios.TCSANOW, &p.previousStdinTermios)
 	}
 }
+
+func isStdoutRedirected() bool {
+	// From https://github.com/mattn/go-isatty/blob/master/isatty_tcgets.go
+	_, err := unix.IoctlGetTermios(int(os.Stdout.Fd()), unix.TCGETS)
+
+	// We expect ENOTTY if stdout is redirected
+	return err != nil
+}
