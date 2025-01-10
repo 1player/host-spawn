@@ -36,16 +36,16 @@ const OUR_EXIT_CODE = 127
 func parseArguments() {
 	const USAGE_PREAMBLE = `Usage: %s [options] [ COMMAND [ arguments... ] ]
 
-If COMMAND is not set, spawn a shell on the host.
+Run COMMAND on your host machine from inside a flatpak sandbox or container.
+If COMMAND is not set, spawn the user's default shell on the host.
 
 Accepted options:
 `
 	const USAGE_FOOTER = `--
 
-If neither pty option is passed, default to allocating a pseudo-terminal unless
-the command is known for misbehaving when attached to a pty.
-
-For more details visit https://github.com/1player/host-spawn/issues/12
+A pseudo-terminal will be automatically allocated unless stdout is
+redirected or the command is known for misbehaving when attached to a
+pty. (See https://github.com/1player/host-spawn/issues/12)
 `
 
 	flag.Usage = func() {
