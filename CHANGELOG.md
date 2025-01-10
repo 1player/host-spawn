@@ -1,3 +1,9 @@
+## 1.6.1 (10 Jan 2025)
+
+* Increase robustness in handling DBus messages (https://github.com/1player/host-spawn/issues/38)
+* Show an error message if the command we're trying to run does not exist (https://github.com/1player/host-spawn/issues/39)
+* Do not allocate a pty if stdout is redirected (https://github.com/1player/host-spawn/issues/40)
+
 ## 1.6.0 (28 Apr 2024)
 
 ### Added
