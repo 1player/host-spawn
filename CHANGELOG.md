@@ -1,3 +1,7 @@
+## 1.6.2 (31 Jul 2025)
+
+* Add support for RISC-V 64 (https://github.com/1player/host-spawn/issues/41)
+
 ## 1.6.1 (10 Jan 2025)
 
 * Increase robustness in handling DBus messages (https://github.com/1player/host-spawn/issues/38)
