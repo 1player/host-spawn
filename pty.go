@@ -113,6 +113,8 @@ func (p *pty) makeStdinRaw() error {
 			} else {
 				return err
 			}
+		} else {
+			return err
 		}
 	}
 
