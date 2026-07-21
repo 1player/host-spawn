@@ -24,7 +24,7 @@ var blocklist = map[string]bool{
 var flagPty = flag.Bool("pty", false, "Force allocate a pseudo-terminal for the host process")
 var flagNoPty = flag.Bool("no-pty", false, "Do not allocate a pseudo-terminal for the host process")
 var flagVersion = flag.Bool("version", false, "Show this program's version")
-var flagEnvironmentVariables = flag.String("env", "TERM", "Comma separated list of environment variables to pass to the host process.")
+var flagEnvironmentVariables = flag.String("env", "TERM,PWD", "Comma separated list of environment variables to pass to the host process.")
 var flagWorkingDirectory = flag.String("cwd", "", "Change working directory of the spawned process")
 
 const OUR_BASENAME = "host-spawn"
