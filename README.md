@@ -45,5 +45,5 @@ Flatpak 1.12.7
 
 * Allocates a pty for the spawned process, fixing the following upstream issues: https://github.com/flatpak/flatpak/issues/3697, https://github.com/flatpak/flatpak/issues/3285 and https://github.com/flatpak/flatpak-xdg-utils/issues/57
 * Handles SIGWINCH (terminal size changes)
-* Passes through `$TERM` environment variable
+* Passes through `$TERM` and `$PWD` environment variable
 * Shims host binaries when symlinked, see section above
